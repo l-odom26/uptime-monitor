@@ -90,6 +90,8 @@ Errors use RFC 7807 problem responses (`application/problem+json`).
 | Failures before DOWN | `app.alert.failure-threshold` | `3` |
 | Worker threads | `app.scheduler.worker-threads` | `8` |
 | Result retention (days) | `app.retention.days` | `30` |
+| Admin username |	ADMIN_USERNAME |	admin |
+| Admin password (required, 8+ chars) |	ADMIN_PASSWORD |	none; the app won’t start without it |
 
 ## Tests
 
@@ -114,10 +116,13 @@ Errors use RFC 7807 problem responses (`application/problem+json`).
 - Monitor URLs are user input that the server fetches, which is an SSRF risk. Non-HTTP schemes and private/loopback/link-local targets are rejected at creation time.
 - Known limitation: DNS is checked at creation only, so a hostname that later resolves to a private address (DNS rebinding) is not caught. A fix is to re-validate the resolved address on every check.
 - The MVP has no authentication. Do not expose it publicly as-is; see the roadmap.
+- The dashboard and API are protected by a single admin login (HTTP Basic). Credentials are sent on every request, so only deploy behind HTTPS (Render, Railway, and Fly.io provide this).
+- No rate limiting on login attempts yet; use a long password.
+- CSRF protection is disabled because no cookies or sessions are used and the API accepts only JSON with no CORS rules.
 
 ## Roadmap
 
-- [ ] Authentication (Spring Security + JWT) and per-user monitors
+- [ ] Multi-user accounts (Spring Security + JWT) with per-user monitors
 - [ ] Flyway migrations instead of `ddl-auto: update`
 - [ ] Incident history (open/close incidents with duration)
 - [ ] Public status page
