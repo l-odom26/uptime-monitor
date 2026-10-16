@@ -22,6 +22,9 @@ services:
       DB_URL: jdbc:postgresql://db:5432/uptime
       DB_USER: uptime
       DB_PASSWORD: uptime
+      # Dashboard/API login. The username is "admin". Set your own password before deploying anywhere:
+      #   PowerShell:  $env:ADMIN_PASSWORD = "your-long-password"; docker compose up --build
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-changeme-local}
       # ALERT_WEBHOOK_URL: https://hooks.slack.com/services/...   (optional)
     ports:
       - "8080:8080"

@@ -29,5 +29,9 @@ app:
   alert:
     failure-threshold: 3          # consecutive failures before a monitor is DOWN
     webhook-url: ${ALERT_WEBHOOK_URL:}
+  # Single admin login (HTTP Basic). The app refuses to start without a password of 8+ characters.
+  auth:
+    username: ${ADMIN_USERNAME:admin}
+    password: ${ADMIN_PASSWORD:}
   # Block loopback / private-network targets (SSRF protection). Set true only for local dev.
   allow-private-targets: ${ALLOW_PRIVATE_TARGETS:false}
