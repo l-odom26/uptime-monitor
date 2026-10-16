@@ -1,12 +1,12 @@
 # Uptime Monitor
-
+   ![CI](https://github.com/l-odom26/uptime-monitor/actions/workflows/ci.yml/badge.svg)
 A self-hosted service that checks HTTP endpoints on a schedule, records status and latency, shows a
 live dashboard, and sends an alert when a target goes down or recovers.
 
 Built with **Kotlin, Spring Boot 3, Spring Data JPA, PostgreSQL**, tested with JUnit 5, packaged with
 Docker, and built by GitHub Actions on every push.
 
-![Dashboard](docs/dashboard.png)
+![Dashboard](/dashboard.png)
 
 ## Features
 
