@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Uptime Monitor</title>
+<style>
+  :root {
+    --bg: #f7f7f5; --card: #ffffff; --text: #1f2328; --muted: #6a737d; --line: #e3e3df;
+    --up: #1a7f37; --down: #cf222e; --unknown: #8b949e; --accent: #2f6fed;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --card: #1c1f25; --text: #e6e8eb; --muted: #9aa4af; --line: #2c3038;
+      --up: #3fb950; --down: #f85149; --unknown: #8b949e; --accent: #6ea0ff;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.5 system-ui, -apple-system, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 24px 16px 48px; }
+  h1 { font-size: 20px; margin: 0 0 16px; }
+  h2 { font-size: 14px; margin: 0 0 12px; color: var(--muted); font-weight: 600; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+  .scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--muted); font-weight: 500; font-size: 12px; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
+  tr.selected { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 12px; font-weight: 600; color: #fff; }
+  .badge.up { background: var(--up); } .badge.down { background: var(--down); } .badge.unknown { background: var(--unknown); }
+  form { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; align-items: end; }
+  label { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+  input { width: 100%; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--text); font: inherit; }
+  button { padding: 7px 12px; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--down); padding: 2px 6px; }
+  canvas { width: 100%; height: 200px; display: block; }
+  #error { color: var(--down); min-height: 1.5em; }
+  .muted { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Uptime Monitor</h1>
+
+  <div class="card">
+    <h2>Add a monitor</h2>
+    <form id="add">
+      <label>Name <input name="name" required maxlength="100" placeholder="GitHub API"></label>
+      <label>URL <input name="url" required type="url" placeholder="https://api.github.com"></label>
+      <label>Interval (s) <input name="intervalSeconds" type="number" min="10" value="60"></label>
+      <label>Expected status <input name="expectedStatus" type="number" min="100" max="599" value="200"></label>
+      <button type="submit">Add</button>
+    </form>
+    <div id="error" role="alert"></div>
+  </div>
+
+  <div class="card">
+    <h2>Monitors <span class="muted">(24h stats, refreshes every 5s)</span></h2>
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Status</th><th>Name</th><th>URL</th><th>Uptime</th><th>Avg</th><th>p95</th><th>Last check</th><th></th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p id="empty" class="muted" hidden>No monitors yet. Add one above.</p>
+  </div>
+
+  <div class="card" id="chartCard" hidden>
+    <h2>Latency, last 100 checks <span class="muted">(red dots = failed checks)</span></h2>
+    <canvas id="chart"></canvas>
+  </div>
+</main>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const el = (tag, props = {}, ...kids) => {
+  const n = document.createElement(tag);
+  Object.assign(n, props);
+  kids.forEach((k) => n.append(k));
+  return n;
+};
+let selected = null;
+
+async function api(path, opts = {}) {
+  const r = await fetch('/api/monitors' + path, { headers: { 'Content-Type': 'application/json' }, ...opts });
+  if (!r.ok) {
+    let msg = r.statusText;
+    try { msg = (await r.json()).detail || msg; } catch (e) { /* ignore */ }
+    throw new Error(msg);
+  }
+  return r.status === 204 ? null : r.json();
+}
+
+const fmt = (v, suffix = '') => (v == null ? '—' : v + suffix);
+const ago = (iso) => {
+  if (!iso) return 'never';
+  const s = Math.max(0, Math.round((Date.now() - new Date(iso)) / 1000));
+  return s < 60 ? s + 's ago' : s < 3600 ? Math.round(s / 60) + 'm ago' : Math.round(s / 3600) + 'h ago';
+};
+
+async function refresh() {
+  try {
+    const monitors = await api('');
+    const stats = await Promise.all(monitors.map((m) => api(`/${m.id}/stats?hours=24`)));
+    const body = $('#rows');
+    body.replaceChildren();
+    monitors.forEach((m, i) => {
+      const s = stats[i];
+      const del = el('button', { textContent: 'Delete', className: 'ghost' });
+      del.onclick = async (ev) => {
+        ev.stopPropagation();
+        if (!confirm('Delete ' + m.name + '?')) return;
+        await api('/' + m.id, { method: 'DELETE' });
+        if (selected === m.id) selected = null;
+        refresh();
+      };
+      const tr = el('tr', { className: 'row' + (selected === m.id ? ' selected' : '') },
+        el('td', {}, el('span', { className: 'badge ' + m.status.toLowerCase(), textContent: m.status })),
+        el('td', { textContent: m.name }),
+        el('td', { textContent: m.url }),
+        el('td', { textContent: fmt(s.uptimePercent, '%') }),
+        el('td', { textContent: fmt(s.avgLatencyMs, ' ms') }),
+        el('td', { textContent: fmt(s.p95LatencyMs, ' ms') }),
+        el('td', { textContent: ago(m.lastCheckedAt) }),
+        el('td', {}, del));
+      tr.onclick = () => { selected = m.id; refresh(); };
+      body.append(tr);
+    });
+    $('#empty').hidden = monitors.length > 0;
+    await drawChart();
+    $('#error').textContent = '';
+  } catch (e) {
+    $('#error').textContent = e.message;
+  }
+}
+
+async function drawChart() {
+  const card = $('#chartCard');
+  if (selected == null) { card.hidden = true; return; }
+  const rs = (await api(`/${selected}/results?limit=100`)).reverse();
+  card.hidden = false;
+
+  const c = $('#chart');
+  const dpr = window.devicePixelRatio || 1;
+  const w = c.clientWidth, h = c.clientHeight;
+  c.width = w * dpr; c.height = h * dpr;
+  const g = c.getContext('2d');
+  g.scale(dpr, dpr);
+  g.clearRect(0, 0, w, h);
+
+  const css = getComputedStyle(document.documentElement);
+  const line = css.getPropertyValue('--accent'), bad = css.getPropertyValue('--down'), muted = css.getPropertyValue('--muted');
+  g.font = '11px system-ui, sans-serif';
+
+  if (rs.length < 2) { g.fillStyle = muted; g.fillText('Waiting for more checks…', 12, 24); return; }
+
+  const max = Math.max(...rs.map((r) => r.latencyMs), 1);
+  const pad = 40;
+  const x = (i) => pad + (w - pad - 8) * i / (rs.length - 1);
+  const y = (v) => h - 20 - (h - 36) * v / max;
+
+  g.strokeStyle = line; g.lineWidth = 2; g.beginPath();
+  let drawing = false;
+  rs.forEach((r, i) => {
+    if (!r.success) { drawing = false; return; }
+    if (drawing) g.lineTo(x(i), y(r.latencyMs)); else g.moveTo(x(i), y(r.latencyMs));
+    drawing = true;
+  });
+  g.stroke();
+
+  g.fillStyle = bad;
+  rs.forEach((r, i) => { if (!r.success) { g.beginPath(); g.arc(x(i), h - 20, 4, 0, Math.PI * 2); g.fill(); } });
+
+  g.fillStyle = muted;
+  g.fillText(max + ' ms', 2, 12);
+  g.fillText('0', 2, h - 20);
+}
+
+$('#add').onsubmit = async (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  try {
+    await api('', {
+      method: 'POST',
+      body: JSON.stringify({
+        name: f.get('name'),
+        url: f.get('url'),
+        intervalSeconds: Number(f.get('intervalSeconds')),
+        expectedStatus: Number(f.get('expectedStatus')),
+      }),
+    });
+    e.target.reset();
+    await refresh();
+  } catch (err) {
+    $('#error').textContent = err.message;
+  }
+};
+
+refresh();
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

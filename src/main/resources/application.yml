@@ -1,0 +1,33 @@
+spring:
+  application:
+    name: uptime-monitor
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/uptime}
+    username: ${DB_USER:uptime}
+    password: ${DB_PASSWORD:uptime}
+  jpa:
+    hibernate:
+      ddl-auto: update   # MVP convenience; see README roadmap (Flyway migrations)
+    open-in-view: false
+
+server:
+  port: ${PORT:8080}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+app:
+  scheduler:
+    enabled: true
+    tick-ms: 1000
+    worker-threads: 8
+  retention:
+    days: 30
+  alert:
+    failure-threshold: 3          # consecutive failures before a monitor is DOWN
+    webhook-url: ${ALERT_WEBHOOK_URL:}
+  # Block loopback / private-network targets (SSRF protection). Set true only for local dev.
+  allow-private-targets: ${ALLOW_PRIVATE_TARGETS:false}
