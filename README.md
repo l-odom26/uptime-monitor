@@ -95,8 +95,8 @@ Errors use RFC 7807 problem responses (`application/problem+json`).
 
 ## Login
 
-username: admin
-password: hgbfdsjhtysdjd
+- username: admin
+- password: hgbfdsjhtysdjd
 ## Tests
 
 ```bash
