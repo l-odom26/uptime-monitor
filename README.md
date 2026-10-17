@@ -93,6 +93,9 @@ Errors use RFC 7807 problem responses (`application/problem+json`).
 | Admin username |	ADMIN_USERNAME |	admin |
 | Admin password (required, 8+ chars) |	ADMIN_PASSWORD |	none; the app won’t start without it |
 
+## LIVE URL
+- https://uptime-monitor-zm0l.onrender.com
+
 ## Login
 
 - username: admin
