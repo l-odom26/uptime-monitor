@@ -96,10 +96,6 @@ Errors use RFC 7807 problem responses (`application/problem+json`).
 ## LIVE URL
 - https://uptime-monitor-zm0l.onrender.com
 
-## Login
-
-- username: admin
-- password: hgbfdsjhtysdjd
 ## Tests
 
 ```bash
